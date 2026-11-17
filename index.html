@@ -10,8 +10,8 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--fg:#1b1f24;--muted:#5f6b7a;--line:#dde2e8;--acc:#2563eb;--accfg:#fff;--ok:#15803d;--bad:#b91c1c;--warn:#a16207;--key:#eef1f5;--keyh:#e2e7ee}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1216;--card:#171b21;--fg:#e6e9ee;--muted:#93a0b0;--line:#2a313a;--acc:#3b82f6;--accfg:#fff;--ok:#4ade80;--bad:#f87171;--warn:#facc15;--key:#222831;--keyh:#2c333d}}
+:root{--pad:#e9edf3;--bg:#f6f7f9;--card:#fff;--fg:#1b1f24;--muted:#5f6b7a;--line:#dde2e8;--acc:#2563eb;--accfg:#fff;--ok:#15803d;--bad:#b91c1c;--warn:#a16207;--key:#eef1f5;--keyh:#e2e7ee}
+@media (prefers-color-scheme:dark){:root{--pad:#1b2129;--bg:#0f1216;--card:#171b21;--fg:#e6e9ee;--muted:#93a0b0;--line:#2a313a;--acc:#3b82f6;--accfg:#fff;--ok:#4ade80;--bad:#f87171;--warn:#facc15;--key:#222831;--keyh:#2c333d}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -45,6 +45,16 @@ button.big{font-size:17px;padding:14px 22px;width:100%}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;margin:0;font-size:13px}dt{color:var(--muted)}dd{margin:0;word-break:break-all}
 code{font-size:12px}
 ol{margin:6px 0 0;padding-left:20px;font-size:14px}ol li{margin:3px 0}
+.padsec h2{margin-bottom:8px}
+#pad{position:relative;height:min(50vh,420px);min-height:220px;border-radius:14px;border:1px solid var(--line);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overflow:hidden;cursor:crosshair;
+  background:radial-gradient(circle,var(--line) 1px,transparent 1.5px) 0 0/22px 22px,var(--pad)}
+#pad.locked{outline:2px solid var(--acc);cursor:none}
+#pad .hint{position:absolute;left:0;right:0;bottom:10px;text-align:center;font-size:12px;color:var(--muted);pointer-events:none;padding:0 10px}
+#pad .dot{position:absolute;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:var(--acc);opacity:.22;pointer-events:none}
+.mbtns{display:grid;grid-template-columns:1fr 70px 1fr;gap:8px;margin-top:8px}
+.mbtns button{height:62px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;font-weight:500}
+.mbtns button.held{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
+input[type=range]{padding:0;accent-color:var(--acc)}
 .hide{display:none!important}
 .off section.needs{opacity:.45;pointer-events:none}
 details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:8px}
@@ -72,7 +82,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:8px}
         <li>Tap <b>Connect</b> and choose <b>ESP32-Keyboard</b>.</li>
         <li>First time only: your phone asks to pair. Enter the <b>6-digit PIN</b>.</li>
       </ol>
-      <div class="sub">Page version 2</div>
+      <div class="sub">Page version 3</div>
     </div>
   </section>
 
@@ -88,6 +98,24 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:8px}
       <label>speed <select id="speed" style="width:auto"><option value="30">slow</option><option value="8" selected>normal</option><option value="3">fast</option></select></label>
     </div>
     <div class="bar"><i id="prog"></i></div>
+  </section>
+
+  <section class="needs padsec">
+    <h2>Trackpad</h2>
+    <div id="pad"><div class="hint" id="padText">Move: 1 finger · Click: tap · Right-click: 2-finger tap · Scroll: 2-finger drag · Drag: double-tap and hold</div></div>
+    <div class="mbtns">
+      <button data-mb="1">Left</button><button data-mb="4" title="Middle button">Middle</button><button data-mb="2">Right</button>
+    </div>
+    <details><summary>Trackpad settings</summary>
+      <div class="row"><label style="flex:1">Speed <input type="range" id="tpSpeed" min="0.3" max="3" step="0.1" value="1" style="flex:1"> <span id="tpSpeedV">1.0×</span></label></div>
+      <div class="row">
+        <label><input type="checkbox" id="tpAccel" checked> acceleration (a faster swipe goes further)</label>
+        <label><input type="checkbox" id="tpTap" checked> tap to click</label>
+        <label><input type="checkbox" id="tpNatural" checked> natural scrolling</label>
+      </div>
+      <div class="sub">Hold a button and move with another finger to drag. On a computer with a mouse, click the pad to steer the target with that mouse; press Esc to let go.
+      If the pointer feels too fast on Windows, lower the speed or turn off acceleration here or "Enhance pointer precision" on the PC.</div>
+    </details>
   </section>
 
   <section class="needs">
@@ -156,7 +184,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:8px}
       <button id="btnReboot">Restart ESP32</button>
       <button id="btnDisconnect">Disconnect</button>
     </div>
-    <div class="sub">Hold BOOT for 2 s to make it type this page's address. Saved macros live on the ESP32. Page version 2.</div>
+    <div class="sub">Hold BOOT for 2 s to make it type this page's address. Saved macros live on the ESP32. Page version 3.</div>
   </section>
 </main>
 
@@ -284,7 +312,7 @@ async function connect() {
 async function onDisconnected() {
   if (reconnecting) return;                // a failed retry inside the loop below
   const wasUp = linkUp;
-  linkUp = false; rx = null; tx = null; clearInterval(pollT);
+  linkUp = false; rx = null; tx = null; clearInterval(pollT); mouseReset();
   for (const [id, p] of pending) { clearTimeout(p.t); p.res({ok: false, error: 'disconnected'}); } pending.clear();
   document.body.classList.add('off');
   $('pPC').classList.add('hide'); $('pBusy').classList.add('hide');
@@ -324,6 +352,134 @@ async function poll() {
 function sendKey(k, m) { if (linkUp) quiet({op: 'key', k, m}); }
 function sendText(t, ms) { if (linkUp) req('type', {text: t, ms: ms || 8}, 120000).catch(e => say(e.message, true)); }
 function runScript(s) { return req('run', {script: s}, 60000); }
+
+
+/* ---------- mouse: packets (02 buttons dxLo dxHi dyLo dyHi wheel pan), coalesced, buttons never merged ---------- */
+let mBtn = 0, mSent = 0, mX = 0, mY = 0, mW = 0, mBusy = false;
+const mBtnQ = [];
+const vib = () => { try { if (navigator.vibrate) navigator.vibrate(8); } catch (e) {} };
+function mousePump() {
+  if (mBusy || !rx || !linkUp || (!mX && !mY && !mW && !mBtnQ.length)) return;
+  const cl = (v, l) => Math.max(-l, Math.min(l, v));
+  const x = cl(mX, 32000), y = cl(mY, 32000), w = cl(mW, 127);
+  mX -= x; mY -= y; mW -= w;
+  const b = mBtnQ.length ? mBtnQ.shift() : mSent;
+  mSent = b;
+  const pkt = new Uint8Array([2, b, x & 255, (x >> 8) & 255, y & 255, (y >> 8) & 255, w & 255, 0]);
+  mBusy = true;
+  const job = wq.then(() => withTimeout(rx.writeValueWithoutResponse ? rx.writeValueWithoutResponse(pkt) : rx.writeValue(pkt), 4000, 'mouse'));
+  wq = job.catch(() => {});
+  job.catch(() => {}).finally(() => { mBusy = false; mousePump(); });
+}
+function mouseMove(dx, dy) { mX += dx; mY += dy; mousePump(); }
+function mouseWheel(n) { mW += n; mousePump(); }
+function setButtons(b) { if (b === mBtn) return; mBtn = b; mBtnQ.push(b); mousePump(); }
+function click(bit, times) { for (let i = 0; i < (times || 1); i++) { setButtons(mBtn | bit); setButtons(mBtn & ~bit); } vib(); }
+function mouseReset() {
+  mBtn = mSent = mX = mY = mW = 0; mBtnQ.length = 0; pts.clear(); dragFromTap = false;
+  if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; }
+  document.querySelectorAll('[data-mb].held').forEach(b => b.classList.remove('held'));
+  pad.querySelectorAll('.dot').forEach(d => d.remove());
+}
+
+/* ---------- trackpad settings ---------- */
+const S = {speed: 1, accel: true, tap: true, natural: true};
+try { Object.assign(S, JSON.parse(localStorage.getItem('tp') || '{}')); } catch (e) {}
+function saveS() { try { localStorage.setItem('tp', JSON.stringify(S)); } catch (e) {} }
+$('tpSpeed').value = S.speed; $('tpSpeedV').textContent = (+S.speed).toFixed(1) + '×';
+$('tpAccel').checked = S.accel; $('tpTap').checked = S.tap; $('tpNatural').checked = S.natural;
+$('tpSpeed').oninput = () => { S.speed = +$('tpSpeed').value; $('tpSpeedV').textContent = S.speed.toFixed(1) + '×'; saveS(); };
+$('tpAccel').onchange = () => { S.accel = $('tpAccel').checked; saveS(); };
+$('tpTap').onchange = () => { S.tap = $('tpTap').checked; saveS(); };
+$('tpNatural').onchange = () => { S.natural = $('tpNatural').checked; saveS(); };
+
+/* ---------- trackpad: calibrated pointer motion ----------
+ * Finger motion is measured in millimetres (1 CSS px = 25.4/96 mm), so the feel is the same on any screen.
+ * Gain depends on finger speed (like laptop touchpads): slow = precise (0.85x), fast swipe = up to 2.75x,
+ * with a smooth S-curve between 25 and 250 mm/s. Fractions are carried over, so slow moves are not lost. */
+const pad = $('pad'), MM_PER_PX = 25.4 / 96, COUNTS_PER_MM = 8, SCROLL_MM = 3.5;
+const pts = new Map();
+let gStart = 0, travel = 0, maxPts = 0, tapTimer = null, dragFromTap = false;
+let fx = 0, fy = 0, fs = 0, vel = 0, lastT = 0;
+function gain(vmm) {
+  if (!S.accel) return 1;
+  const t = Math.min(1, Math.max(0, (vmm - 25) / 225)), sm = t * t * (3 - 2 * t);
+  return 0.85 + sm * 1.9;
+}
+function dot(p) { if (!p.el) { p.el = document.createElement('div'); p.el.className = 'dot'; pad.appendChild(p.el); } const r = pad.getBoundingClientRect(); p.el.style.left = (p.x - r.left) + 'px'; p.el.style.top = (p.y - r.top) + 'px'; }
+pad.addEventListener('contextmenu', e => e.preventDefault());
+pad.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse') { if (document.pointerLockElement !== pad && pad.requestPointerLock) pad.requestPointerLock(); return; }
+  e.preventDefault();
+  try { pad.setPointerCapture(e.pointerId); } catch (x) {}
+  const p = {x: e.clientX, y: e.clientY};
+  pts.set(e.pointerId, p); dot(p);
+  if (pts.size === 1) {
+    gStart = e.timeStamp; travel = 0; maxPts = 1; vel = 0; lastT = e.timeStamp; fx = fy = 0;
+    if (tapTimer) { clearTimeout(tapTimer); tapTimer = null; dragFromTap = true; setButtons(mBtn | 1); }   // tap + touch again = drag
+  } else { maxPts = Math.max(maxPts, pts.size); fs = 0; }
+});
+pad.addEventListener('pointermove', e => {
+  const p = pts.get(e.pointerId); if (!p) return;
+  let evs = e.getCoalescedEvents ? e.getCoalescedEvents() : []; if (!evs.length) evs = [e];
+  let dx = 0, dy = 0;
+  for (const c of evs) { dx += c.clientX - p.x; dy += c.clientY - p.y; p.x = c.clientX; p.y = c.clientY; }
+  dot(p);
+  travel += Math.hypot(dx, dy);
+  if (pts.size === 1) {
+    const dt = Math.max(1, e.timeStamp - lastT); lastT = e.timeStamp;
+    const v = Math.hypot(dx, dy) * MM_PER_PX / dt * 1000;            // finger speed, mm/s
+    vel = vel * 0.5 + v * 0.5;
+    const k = MM_PER_PX * COUNTS_PER_MM * S.speed * gain(vel);
+    fx += dx * k; fy += dy * k;
+    const ix = Math.trunc(fx), iy = Math.trunc(fy); fx -= ix; fy -= iy;
+    if (ix || iy) mouseMove(ix, iy);
+  } else if (pts.size === 2) {                                       // two fingers: scroll
+    fs += dy / 2 * MM_PER_PX;
+    const n = Math.trunc(fs / SCROLL_MM);
+    if (n) { fs -= n * SCROLL_MM; mouseWheel(S.natural ? n : -n); }
+  }
+});
+function padUp(e) {
+  const p = pts.get(e.pointerId); if (!p) return;
+  if (p.el) p.el.remove();
+  pts.delete(e.pointerId);
+  if (pts.size) return;                                             // wait until every finger is up
+  const isTap = e.type === 'pointerup' && e.timeStamp - gStart < 250 && travel < (maxPts > 1 ? 18 : 10);
+  if (dragFromTap) { dragFromTap = false; setButtons(mBtn & ~1); if (isTap) click(1); return; }   // tap, tap = double-click
+  if (!S.tap || !isTap) return;
+  if (maxPts >= 2) { click(2); return; }                            // two-finger tap = right-click
+  tapTimer = setTimeout(() => { tapTimer = null; click(1); }, 220); // wait: a second touch may start a drag
+}
+pad.addEventListener('pointerup', padUp);
+pad.addEventListener('pointercancel', padUp);
+
+/* desktop: steer with this computer's mouse while the pointer is locked to the pad */
+const MB = [1, 4, 2, 8, 16];
+document.addEventListener('pointerlockchange', () => pad.classList.toggle('locked', document.pointerLockElement === pad));
+document.addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== pad) return;
+  fx += e.movementX * S.speed; fy += e.movementY * S.speed;
+  const ix = Math.trunc(fx), iy = Math.trunc(fy); fx -= ix; fy -= iy;
+  if (ix || iy) mouseMove(ix, iy);
+});
+pad.addEventListener('mousedown', e => { if (document.pointerLockElement === pad) { e.preventDefault(); setButtons(mBtn | (MB[e.button] || 0)); } });
+document.addEventListener('mouseup', e => { if (document.pointerLockElement === pad) setButtons(mBtn & ~(MB[e.button] || 0)); });
+pad.addEventListener('wheel', e => {
+  if (document.pointerLockElement !== pad) return;
+  e.preventDefault();
+  fs += -(e.deltaMode === 1 ? e.deltaY / 3 : e.deltaMode === 2 ? e.deltaY : e.deltaY / 100);
+  const n = Math.trunc(fs); if (n) { fs -= n; mouseWheel(n); }
+}, {passive: false});
+
+/* on-screen buttons: held while pressed, so you can drag with another finger */
+document.querySelectorAll('[data-mb]').forEach(b => {
+  const bit = +b.dataset.mb;
+  const rel = () => { if (b.classList.contains('held')) { b.classList.remove('held'); setButtons(mBtn & ~bit); } };
+  b.addEventListener('pointerdown', e => { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (x) {} b.classList.add('held'); setButtons(mBtn | bit); vib(); });
+  b.addEventListener('pointerup', rel); b.addEventListener('pointercancel', rel); b.addEventListener('lostpointercapture', rel);
+  b.addEventListener('contextmenu', e => e.preventDefault());
+});
 
 function setSticky(v) { sticky = v; document.querySelectorAll('#mods button').forEach(b => b.classList.toggle('on', !!(sticky & +b.dataset.mod))); }
 document.querySelectorAll('#mods button').forEach(b => b.onclick = () => setSticky(sticky ^ +b.dataset.mod));
@@ -375,6 +531,7 @@ $('btnType').onclick = async () => {
 };
 $('btnStop').onclick = async () => {
   abortSend = sending > 0;                 // cut a long upload short, then stop typing
+  mouseReset();
   try { await req('stop'); say('Stopped'); } catch (e) { say(e.message, true); }
   setTimeout(() => { abortSend = false; }, 1500);
 };

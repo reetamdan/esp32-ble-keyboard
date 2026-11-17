@@ -1,5 +1,5 @@
 // Offline support. Online: always fetch the latest page (network first). Offline: use the saved copy.
-const CACHE = 'esp32-kbd-v2';
+const CACHE = 'esp32-kbd-v3';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {

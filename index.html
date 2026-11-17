@@ -72,6 +72,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:8px}
         <li>Tap <b>Connect</b> and choose <b>ESP32-Keyboard</b>.</li>
         <li>First time only: your phone asks to pair. Enter the <b>6-digit PIN</b>.</li>
       </ol>
+      <div class="sub">Page version 2</div>
     </div>
   </section>
 
@@ -155,7 +156,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:8px}
       <button id="btnReboot">Restart ESP32</button>
       <button id="btnDisconnect">Disconnect</button>
     </div>
-    <div class="sub">Hold BOOT for 2 s to make it type this page's address. Saved macros live on the ESP32.</div>
+    <div class="sub">Hold BOOT for 2 s to make it type this page's address. Saved macros live on the ESP32. Page version 2.</div>
   </section>
 </main>
 
@@ -189,7 +190,9 @@ function onNotify(ev) {
   else if (j.ok === false && j.error && j.error !== 'stopped' && !(j.error === 'bad json' && abortSend)) say(j.error, true);
 }
 
-const write = f => rx.writeValueWithResponse ? rx.writeValueWithResponse(f) : rx.writeValue(f);   // Bluefy: writeValue
+function withTimeout(p, ms, what) { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error(what + ' timed out')), ms); })]).finally(() => clearTimeout(t)); }
+// Bluefy: writeValue. A write that never completes (seen while a phone is busy pairing) must not block the queue forever.
+const write = f => withTimeout(rx.writeValueWithResponse ? rx.writeValueWithResponse(f) : rx.writeValue(f), 8000, 'Bluetooth write');
 function sendRaw(bytes, progress) {
   const job = wq.then(async () => {
     if (!rx) throw new Error('not connected');
@@ -246,12 +249,20 @@ async function connect() {
     pill('pBT', 'Bluetooth: pairing…', 'warn');
     say('First time? Enter the 6-digit PIN when your device asks to pair.');
     const end = Date.now() + 90000;
-    let st = null;
+    let st = null, tries = 0;
     while (!st && Date.now() < end && dev.gatt.connected) {
+      tries++;
       try {
-        if (!tx.__on) { await tx.startNotifications(); tx.addEventListener('characteristicvaluechanged', onNotify); tx.__on = true; }
-        st = await req('status', null, 4000);
-      } catch (e) { tx.__on = tx.__on && dev.gatt.connected; await sleep(1500); }
+        if (!tx.__on) {
+          await withTimeout(tx.startNotifications(), 10000, 'turning on notifications');
+          tx.addEventListener('characteristicvaluechanged', onNotify); tx.__on = true;
+        }
+        st = await req('status', null, 5000);
+      } catch (e) {
+        say('Waiting for pairing (try ' + tries + '): ' + e.message + '. If your phone asked for a PIN, enter it.');
+        if (/timed out|in progress/.test(e.message)) wq = Promise.resolve();   // drop a stuck write
+        await sleep(1500);
+      }
     }
     if (!st) throw new Error(dev.gatt.connected ? 'pairing did not finish (wrong PIN?)' : 'connection lost (wrong PIN or out of range)');
     mtu = st.mtu || 23;

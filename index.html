@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP32 Keyboard</title>
+<meta name="description" content="Control an ESP32-S3 USB keyboard over Bluetooth">
+<meta name="theme-color" content="#2563eb">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1b1f24;--muted:#5f6b7a;--line:#dde2e8;--acc:#2563eb;--accfg:#fff;--ok:#15803d;--bad:#b91c1c;--warn:#a16207;--key:#eef1f5;--keyh:#e2e7ee}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1216;--card:#171b21;--fg:#e6e9ee;--muted:#93a0b0;--line:#2a313a;--acc:#3b82f6;--accfg:#fff;--ok:#4ade80;--bad:#f87171;--warn:#facc15;--key:#222831;--keyh:#2c333d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+header h1{font-size:17px;margin:0 auto 0 0}
+.pill{font-size:12px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--ok);border-color:currentColor}.pill.bad{color:var(--bad);border-color:currentColor}.pill.warn{color:var(--warn);border-color:currentColor}
+main{max-width:860px;margin:0 auto;padding:12px 16px 40px;display:grid;gap:12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+h2{font-size:15px;margin:0 0 10px;display:flex;justify-content:space-between;align-items:center}
+textarea,input,select{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px}
+textarea{resize:vertical}
+button{font:inherit;border:1px solid var(--line);background:var(--key);color:var(--fg);border-radius:8px;padding:9px 12px;cursor:pointer;touch-action:manipulation}
+button:hover{background:var(--keyh)}button:active{transform:translateY(1px)}
+button:disabled{opacity:.5;cursor:default}
+button.pri{background:var(--acc);color:var(--accfg);border-color:var(--acc)}
+button.danger{color:var(--bad)}
+button.on{outline:2px solid var(--acc);background:var(--keyh)}
+button.big{font-size:17px;padding:14px 22px;width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.row label{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+.row label input{width:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:6px}
+.grid button{padding:10px 6px;font-size:13px}
+.sub{font-size:12px;color:var(--muted);margin:10px 0 6px}
+.bar{height:6px;background:var(--key);border-radius:3px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+#msg{font-size:13px;min-height:18px;color:var(--muted)}#msg.bad{color:var(--bad)}
+#live{font-family:ui-monospace,monospace;min-height:64px}
+.macro{display:flex;gap:6px;align-items:center;border-top:1px solid var(--line);padding:8px 0}
+.macro b{flex:1;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.macro button{padding:6px 9px;font-size:13px}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 12px;margin:0;font-size:13px}dt{color:var(--muted)}dd{margin:0;word-break:break-all}
+code{font-size:12px}
+ol{margin:6px 0 0;padding-left:20px;font-size:14px}ol li{margin:3px 0}
+.hide{display:none!important}
+.off section.needs{opacity:.45;pointer-events:none}
+details summary{cursor:pointer;color:var(--muted);font-size:13px;margin-top:8px}
+</style>
+</head>
+<body class="off">
+<header>
+  <h1>ESP32 Keyboard</h1>
+  <span id="pBT" class="pill">Bluetooth: off</span>
+  <span id="pPC" class="pill hide">PC: ?</span>
+  <span id="pBusy" class="pill hide">typing…</span>
+</header>
+
+<main id="app">
+  <section id="connectBox">
+    <h2>Connect</h2>
+    <div id="noBT" class="hide" style="color:var(--bad)">
+      This browser can't use Bluetooth. Open this page in <b>Chrome</b> or <b>Edge</b> (Android, Windows, Mac, ChromeOS),
+      or in the free <b>Bluefy</b> browser on iPhone/iPad.
+    </div>
+    <div id="canBT">
+      <button class="pri big" id="btnConnect">Connect to the keyboard</button>
+      <ol>
+        <li>Plug the ESP32's <b>LEFT</b> USB-C port into the computer you want to type on.</li>
+        <li>Tap <b>Connect</b> and choose <b>ESP32-Keyboard</b>.</li>
+        <li>First time only: your phone asks to pair. Enter the <b>6-digit PIN</b>.</li>
+      </ol>
+    </div>
+  </section>
+
+  <div id="msg"></div>
+
+  <section class="needs">
+    <h2>Type text</h2>
+    <textarea id="text" rows="5" placeholder="Text to type on the computer…"></textarea>
+    <div class="row">
+      <button class="pri" id="btnType">Type it</button>
+      <button class="danger" id="btnStop">Stop</button>
+      <label><input type="checkbox" id="enterAfter"> press Enter after</label>
+      <label>speed <select id="speed" style="width:auto"><option value="30">slow</option><option value="8" selected>normal</option><option value="3">fast</option></select></label>
+    </div>
+    <div class="bar"><i id="prog"></i></div>
+  </section>
+
+  <section class="needs">
+    <h2>Live keyboard <span class="pill" id="liveHint">tap the box, then type</span></h2>
+    <textarea id="live" rows="2" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Everything typed here goes straight to the computer"></textarea>
+    <div class="sub">Modifiers (apply to the next key)</div>
+    <div class="grid" id="mods">
+      <button data-mod="1">Ctrl</button><button data-mod="2">Shift</button><button data-mod="4">Alt</button><button data-mod="8">Win / Cmd</button>
+    </div>
+    <div class="sub">Keys</div>
+    <div class="grid" id="keys">
+      <button data-k="41">Esc</button><button data-k="43">Tab</button><button data-k="40">Enter</button><button data-k="42">Backspace</button>
+      <button data-k="76">Delete</button><button data-k="44">Space</button><button data-k="82">↑</button><button data-k="81">↓</button>
+      <button data-k="80">←</button><button data-k="79">→</button><button data-k="74">Home</button><button data-k="77">End</button>
+      <button data-k="75">Page Up</button><button data-k="78">Page Down</button><button data-k="73">Insert</button><button data-k="101">Menu</button>
+    </div>
+    <details><summary>F1 – F12</summary><div class="grid" id="fkeys" style="margin-top:6px"></div></details>
+  </section>
+
+  <section class="needs">
+    <h2>Shortcuts</h2>
+    <div class="sub">Editing &amp; browser</div>
+    <div class="grid">
+      <button data-s="CTRL c">Copy</button><button data-s="CTRL x">Cut</button><button data-s="CTRL v">Paste</button>
+      <button data-s="CTRL a">Select all</button><button data-s="CTRL z">Undo</button><button data-s="CTRL y">Redo</button>
+      <button data-s="CTRL s">Save</button><button data-s="CTRL f">Find</button><button data-s="CTRL l">Address bar</button>
+      <button data-s="CTRL t">New tab</button><button data-s="CTRL w">Close tab</button><button data-s="CTRL SHIFT t">Reopen tab</button>
+      <button data-s="CTRL TAB">Next tab</button><button data-s="F5">Refresh</button><button data-s="F11">Full screen</button>
+    </div>
+    <div class="sub">System (Windows · Linux · Android)</div>
+    <div class="grid">
+      <button data-s="GUI">Win / Super</button><button data-s="ALT TAB">Alt+Tab</button><button data-s="ALT F4">Close window</button>
+      <button data-s="GUI r">Run (Win+R)</button><button data-s="GUI d">Desktop</button><button data-s="GUI e">Files</button>
+      <button data-s="GUI l">Lock (Win+L)</button><button data-s="CTRL SHIFT ESC">Task Manager</button><button data-s="CTRL ALT DELETE">Ctrl+Alt+Del</button>
+      <button data-s="CTRL ALT t">Terminal (Linux)</button><button data-s="PRINTSCREEN">Print Screen</button><button data-s="ESC">Back (Android)</button>
+    </div>
+    <div class="sub">Media</div>
+    <div class="grid">
+      <button data-s="VOLUME_DOWN">Vol −</button><button data-s="VOLUME_UP">Vol +</button><button data-s="MUTE">Mute</button>
+      <button data-s="PREV">⏮ Prev</button><button data-s="PLAY_PAUSE">⏯ Play/Pause</button><button data-s="NEXT">⏭ Next</button>
+    </div>
+  </section>
+
+  <section class="needs">
+    <h2>Macros <button id="btnExamples" style="padding:5px 9px;font-size:12px">Add examples</button></h2>
+    <div id="macroList"></div>
+    <div class="sub">New / edit macro</div>
+    <input id="mName" placeholder="Name">
+    <textarea id="mScript" rows="5" style="margin-top:6px;font-family:ui-monospace,monospace" placeholder="GUI r&#10;DELAY 500&#10;STRINGLN https://www.youtube.com/"></textarea>
+    <div class="row">
+      <button class="pri" id="mSave">Save</button><button id="mTry">Run now</button>
+      <button id="mBoot">Use for BOOT button</button>
+    </div>
+    <details><summary>Script commands</summary>
+      <div class="sub">One per line. <code>STRING text</code> types text · <code>STRINGLN text</code> types text + Enter · <code>DELAY 500</code> waits ms · <code>REM note</code> comment ·
+      key combos: <code>ENTER</code>, <code>CTRL c</code>, <code>CTRL+SHIFT+ESC</code>, <code>GUI r</code>, <code>ALT F4</code> ·
+      media: <code>VOLUME_UP VOLUME_DOWN MUTE PLAY_PAUSE NEXT PREV</code> · modifiers: CTRL SHIFT ALT GUI (=WIN/CMD/SUPER).</div>
+    </details>
+    <div class="sub" id="bootInfo"></div>
+  </section>
+
+  <section class="needs">
+    <h2>Device</h2>
+    <dl id="dev"></dl>
+    <div class="row">
+      <button id="btnReboot">Restart ESP32</button>
+      <button id="btnDisconnect">Disconnect</button>
+    </div>
+    <div class="sub">Hold BOOT for 2 s to make it type this page's address. Saved macros live on the ESP32.</div>
+  </section>
+</main>
+
+<script>
+'use strict';
+const SVC = 'd2e61f7b-4563-4bcd-9b62-f3d71ddb25a0';   // keyboard control service
+const RX  = 'd2e61f7b-4563-4bcd-9b62-f3d71ddb25a1';   // page -> board (write)
+const TX  = 'd2e61f7b-4563-4bcd-9b62-f3d71ddb25a2';   // board -> page (notify)
+const $ = id => document.getElementById(id);
+const enc = new TextEncoder(), dec = new TextDecoder();
+let dev = null, rx = null, tx = null, mtu = 23, nextId = 1, linkUp = false, userDisconnect = false;
+let reconnecting = false, wq = Promise.resolve(), abortSend = false, sending = 0, sticky = 0, macros = [], pollT = null;
+const pending = new Map();
+let inBuf = [];
+
+function say(t, bad) { const m = $('msg'); m.textContent = t || ''; m.className = bad ? 'bad' : ''; }
+function pill(id, text, cls) { const p = $(id); p.textContent = text; p.className = 'pill ' + (cls || ''); }
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- framing: 1 flag byte (1 = more follows, 0 = last) + data ---------- */
+function onNotify(ev) {
+  const v = new Uint8Array(ev.target.value.buffer.slice(ev.target.value.byteOffset, ev.target.value.byteOffset + ev.target.value.byteLength));
+  inBuf.push(v.slice(1));
+  if (v[0] !== 0) return;
+  const n = inBuf.reduce((a, b) => a + b.length, 0), all = new Uint8Array(n);
+  let o = 0; for (const b of inBuf) { all.set(b, o); o += b.length; }
+  inBuf = [];
+  let j; try { j = JSON.parse(dec.decode(all)); } catch (e) { return; }
+  const p = pending.get(j.id);
+  if (p) { pending.delete(j.id); clearTimeout(p.t); p.res(j); }
+  else if (j.ok === false && j.error && j.error !== 'stopped' && !(j.error === 'bad json' && abortSend)) say(j.error, true);
+}
+
+const write = f => rx.writeValueWithResponse ? rx.writeValueWithResponse(f) : rx.writeValue(f);   // Bluefy: writeValue
+function sendRaw(bytes, progress) {
+  const job = wq.then(async () => {
+    if (!rx) throw new Error('not connected');
+    const room = Math.min(512, Math.max(20, mtu - 3)) - 1;
+    sending++;
+    try {
+      for (let i = 0; ; i += room) {
+        if (abortSend && bytes.length > room) { await write(new Uint8Array([0])); throw new Error('stopped'); }
+        const last = i + room >= bytes.length, c = bytes.subarray(i, i + room), f = new Uint8Array(c.length + 1);
+        f[0] = last ? 0 : 1; f.set(c, 1);
+        await write(f);
+        if (progress && bytes.length > 2000) progress(Math.min(1, (i + room) / bytes.length));
+        if (last) return;
+      }
+    } finally { sending--; }
+  });
+  wq = job.catch(() => {});
+  return job;
+}
+
+function req(op, args, timeout) {
+  const id = nextId++;
+  const body = enc.encode(JSON.stringify(Object.assign({id, op}, args || {})));
+  return new Promise((res, rej) => {
+    const t = setTimeout(() => { pending.delete(id); rej(new Error('no answer from the ESP32')); }, timeout || 15000);
+    pending.set(id, {res, t});
+    sendRaw(body, args && args.text && (f => say('Sending… ' + Math.round(f * 100) + '%'))).catch(e => { pending.delete(id); clearTimeout(t); rej(e); });
+  }).then(j => { if (!j.ok) throw new Error(j.error || 'failed'); return j; });
+}
+const quiet = obj => sendRaw(enc.encode(JSON.stringify(obj))).catch(e => say(e.message, true));
+
+/* ---------- connect / pair / reconnect ---------- */
+async function pickDevice() {
+  try {
+    dev = await navigator.bluetooth.requestDevice({filters: [{services: [SVC]}]});
+  } catch (e) { if (e.name !== 'NotFoundError') say(e.message, true); return; }
+  dev.addEventListener('gattserverdisconnected', onDisconnected);
+  userDisconnect = false;
+  reconnecting = true;                     // a link that drops while being set up: try once more
+  for (let i = 0; i < 2 && !linkUp; i++) { if (i) await sleep(2000); await connect(); }
+  reconnecting = false;
+  if (!linkUp) $('connectBox').classList.remove('hide');
+}
+
+async function connect() {
+  pill('pBT', 'Bluetooth: connecting…', 'warn');
+  try {
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService(SVC);
+    rx = await svc.getCharacteristic(RX);
+    tx = await svc.getCharacteristic(TX);
+    inBuf = [];
+    // The ESP32 asks for pairing right after connecting: the first time, the phone shows a PIN prompt.
+    pill('pBT', 'Bluetooth: pairing…', 'warn');
+    say('First time? Enter the 6-digit PIN when your device asks to pair.');
+    const end = Date.now() + 90000;
+    let st = null;
+    while (!st && Date.now() < end && dev.gatt.connected) {
+      try {
+        if (!tx.__on) { await tx.startNotifications(); tx.addEventListener('characteristicvaluechanged', onNotify); tx.__on = true; }
+        st = await req('status', null, 4000);
+      } catch (e) { tx.__on = tx.__on && dev.gatt.connected; await sleep(1500); }
+    }
+    if (!st) throw new Error(dev.gatt.connected ? 'pairing did not finish (wrong PIN?)' : 'connection lost (wrong PIN or out of range)');
+    mtu = st.mtu || 23;
+    linkUp = true;
+    document.body.classList.remove('off');
+    $('connectBox').classList.add('hide');
+    pill('pBT', 'Bluetooth: connected', 'ok');
+    say('Connected to ' + (dev.name || 'ESP32-Keyboard'));
+    showStatus(st);
+    loadMacros();
+    clearInterval(pollT); pollT = setInterval(poll, 2000);
+  } catch (e) {
+    say('Could not connect: ' + e.message, true);
+    pill('pBT', 'Bluetooth: not connected', 'bad');
+    try { dev.gatt.disconnect(); } catch (x) {}
+  }
+}
+
+async function onDisconnected() {
+  if (reconnecting) return;                // a failed retry inside the loop below
+  const wasUp = linkUp;
+  linkUp = false; rx = null; tx = null; clearInterval(pollT);
+  for (const [id, p] of pending) { clearTimeout(p.t); p.res({ok: false, error: 'disconnected'}); } pending.clear();
+  document.body.classList.add('off');
+  $('pPC').classList.add('hide'); $('pBusy').classList.add('hide');
+  if (userDisconnect || !wasUp) { pill('pBT', userDisconnect ? 'Bluetooth: off' : 'Bluetooth: not connected', userDisconnect ? '' : 'bad'); $('connectBox').classList.remove('hide'); return; }
+  pill('pBT', 'Bluetooth: reconnecting…', 'warn');
+  reconnecting = true;
+  for (let i = 0; i < 20 && !linkUp && !userDisconnect; i++) {   // ~1 min of retries (e.g. ESP32 restarting)
+    await sleep(Math.min(1000 + i * 500, 5000));
+    try { await connect(); } catch (e) {}
+  }
+  reconnecting = false;
+  if (!linkUp) { pill('pBT', 'Bluetooth: not connected', 'bad'); $('connectBox').classList.remove('hide'); }
+}
+
+/* ---------- status ---------- */
+function fmtUp(s) { const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return (h ? h + ' h ' : '') + m + ' min'; }
+function showStatus(s) {
+  const k = s.kbd, b = s.ble;
+  const pc = $('pPC'); pc.classList.remove('hide');
+  pill('pPC', k.usb_connected ? (k.usb_suspended ? 'PC: asleep' : 'PC: connected') : 'PC: not connected', k.usb_connected && !k.usb_suspended ? 'ok' : 'bad');
+  $('pBusy').classList.toggle('hide', !k.busy && !k.queued);
+  $('prog').style.width = k.busy && k.total ? (100 * k.done / k.total) + '%' : '0';
+  if (!sending && !k.busy && k.last.job && !k.last.ok && k.last.error) say('Last job failed: ' + k.last.error, true);
+  else if (!sending && !k.busy && k.last.skipped) say(k.last.skipped + ' character(s) skipped (only plain English keyboard characters can be typed)');
+  const rows = [['Firmware', s.version + ' (' + s.slot + ')'], ['Bluetooth name', b.name], ['Paired devices', b.paired_devices + ' (' + b.connected + ' connected now)'],
+    ['Uptime', fmtUp(s.uptime_s)], ['Last restart', s.reset_reason], ['Caps Lock', k.caps_lock ? 'on' : 'off'], ['Keys sent', k.keys_sent],
+    ['Free memory', Math.round(s.heap_free / 1024) + ' KB']];
+  $('dev').innerHTML = rows.map(r => '<dt>' + r[0] + '</dt><dd></dd>').join('');
+  $('dev').querySelectorAll('dd').forEach((d, i) => d.textContent = rows[i][1]);
+}
+async function poll() {
+  if (!linkUp || sending || document.visibilityState !== 'visible') return;
+  try { showStatus(await req('status', null, 8000)); } catch (e) {}
+}
+
+/* ---------- key helpers ---------- */
+function sendKey(k, m) { if (linkUp) quiet({op: 'key', k, m}); }
+function sendText(t, ms) { if (linkUp) req('type', {text: t, ms: ms || 8}, 120000).catch(e => say(e.message, true)); }
+function runScript(s) { return req('run', {script: s}, 60000); }
+
+function setSticky(v) { sticky = v; document.querySelectorAll('#mods button').forEach(b => b.classList.toggle('on', !!(sticky & +b.dataset.mod))); }
+document.querySelectorAll('#mods button').forEach(b => b.onclick = () => setSticky(sticky ^ +b.dataset.mod));
+for (let i = 1; i <= 12; i++) { const b = document.createElement('button'); b.textContent = 'F' + i; b.dataset.k = 57 + i; $('fkeys').appendChild(b); }
+document.querySelectorAll('[data-k]').forEach(b => b.onclick = () => { sendKey(+b.dataset.k, sticky); setSticky(0); });
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => runScript(b.dataset.s).catch(e => say(e.message, true)));
+
+/* ---------- live box: physical keyboards (keydown) + phone keyboards (input diff) ---------- */
+const CODE = {Enter:40,Escape:41,Backspace:42,Tab:43,Space:44,Minus:45,Equal:46,BracketLeft:47,BracketRight:48,Backslash:49,Semicolon:51,Quote:52,Backquote:53,Comma:54,Period:55,Slash:56,CapsLock:57,PrintScreen:70,ScrollLock:71,Pause:72,Insert:73,Home:74,PageUp:75,Delete:76,End:77,PageDown:78,ArrowRight:79,ArrowLeft:80,ArrowDown:81,ArrowUp:82,ContextMenu:101,IntlBackslash:100};
+for (let i = 0; i < 26; i++) CODE['Key' + String.fromCharCode(65 + i)] = 4 + i;
+for (let i = 1; i <= 9; i++) CODE['Digit' + i] = 29 + i; CODE.Digit0 = 39;
+for (let i = 1; i <= 12; i++) CODE['F' + i] = 57 + i;
+const NONPRINT = new Set(['Enter','Escape','Backspace','Tab','Insert','Home','PageUp','Delete','End','PageDown','ArrowRight','ArrowLeft','ArrowDown','ArrowUp','ContextMenu','CapsLock','PrintScreen','ScrollLock','Pause']);
+for (let i = 1; i <= 12; i++) NONPRINT.add('F' + i);
+const SENT = '​​​​';   // padding so phone Backspace always produces an input event
+const live = $('live'); let prev = SENT; live.value = SENT;
+function resetLive() { live.value = SENT; prev = SENT; live.setSelectionRange(SENT.length, SENT.length); }
+live.addEventListener('focus', () => setTimeout(() => live.setSelectionRange(live.value.length, live.value.length), 0));
+live.addEventListener('keydown', e => {
+  if (e.isComposing || e.keyCode === 229 || !(e.code in CODE)) return;
+  const m = (e.ctrlKey ? 1 : 0) | (e.shiftKey ? 2 : 0) | (e.altKey ? 4 : 0) | (e.metaKey ? 8 : 0) | sticky;
+  const combo = (m & ~2) !== 0;
+  if (NONPRINT.has(e.code) || combo) {
+    e.preventDefault(); sendKey(CODE[e.code], m); setSticky(0);
+    if (e.code === 'Enter') resetLive();
+  }
+});
+live.addEventListener('input', () => {
+  const now = live.value; let p = 0;
+  while (p < prev.length && p < now.length && prev[p] === now[p]) p++;
+  const del = [...prev.slice(p)].length, add = now.slice(p).replace(/​/g, '');
+  for (let i = 0; i < del; i++) sendKey(42, 0);
+  if (add) {
+    if (sticky && add.length === 1 && /[a-z0-9]/i.test(add)) { const c = add.toLowerCase(); sendKey(c >= 'a' ? c.charCodeAt(0) - 93 : (c === '0' ? 39 : 29 + +c), sticky); setSticky(0); }
+    else sendText(add);
+  }
+  prev = now;
+  if (!now.startsWith(SENT) || now.length > 120 || add.includes('\n')) resetLive();
+});
+
+/* ---------- type box ---------- */
+$('btnType').onclick = async () => {
+  let t = $('text').value; if (!t) return say('Nothing to type', true);
+  if ($('enterAfter').checked) t += '\n';
+  if (enc.encode(t).length > 32768) return say('Text too long (max 32 KB)', true);
+  abortSend = false;
+  try { await req('type', {text: t, ms: +$('speed').value}, 120000); say('Typing ' + t.length + ' characters…'); }
+  catch (e) { say(abortSend ? 'Stopped' : e.message, !abortSend); }
+};
+$('btnStop').onclick = async () => {
+  abortSend = sending > 0;                 // cut a long upload short, then stop typing
+  try { await req('stop'); say('Stopped'); } catch (e) { say(e.message, true); }
+  setTimeout(() => { abortSend = false; }, 1500);
+};
+
+/* ---------- macros ---------- */
+async function loadMacros() {
+  try { macros = (await req('macros_get')).macros || []; } catch (e) { macros = []; }
+  renderMacros();
+  try { const b = await req('boot_get'); $('bootInfo').textContent = 'BOOT button runs: ' + b.script.replace(/\n/g, ' ⏎ '); } catch (e) {}
+}
+function renderMacros() {
+  const L = $('macroList'); L.innerHTML = '';
+  if (!macros.length) L.innerHTML = '<div class="sub">No saved macros yet.</div>';
+  macros.forEach((m, i) => {
+    const d = document.createElement('div'); d.className = 'macro';
+    const n = document.createElement('b'); n.textContent = m.name; n.title = m.script; d.appendChild(n);
+    [['Run', () => runScript(m.script).catch(e => say(e.message, true))], ['Edit', () => { $('mName').value = m.name; $('mScript').value = m.script; }],
+     ['Delete', async () => { if (!confirm('Delete "' + m.name + '"?')) return; macros.splice(i, 1); await saveMacros(); }]]
+      .forEach(([t, f]) => { const b = document.createElement('button'); b.textContent = t; b.onclick = f; if (t === 'Run') b.className = 'pri'; d.appendChild(b); });
+    L.appendChild(d);
+  });
+}
+async function saveMacros() {
+  try { await req('macros_set', {macros}, 30000); renderMacros(); say('Macros saved'); } catch (e) { say(e.message, true); loadMacros(); }
+}
+$('mSave').onclick = async () => {
+  const name = $('mName').value.trim(), script = $('mScript').value.trim();
+  if (!name || !script) return say('Name and script needed', true);
+  const i = macros.findIndex(m => m.name === name);
+  if (i >= 0) macros[i].script = script; else macros.push({name, script});
+  await saveMacros();
+};
+$('mTry').onclick = () => { const s = $('mScript').value.trim(); if (s) runScript(s).then(() => say('Running…')).catch(e => say(e.message, true)); };
+$('mBoot').onclick = async () => {
+  const s = $('mScript').value.trim();
+  try { await req('boot_set', {script: s}); say(s ? 'BOOT button updated' : 'BOOT button reset to default'); loadMacros(); } catch (e) { say(e.message, true); }
+};
+$('btnExamples').onclick = async () => {
+  const ex = [
+    {name: 'Open YouTube (Windows)', script: 'GUI r\nDELAY 600\nSTRINGLN https://www.youtube.com/'},
+    {name: 'Open YouTube in current browser', script: 'CTRL l\nDELAY 200\nSTRINGLN https://www.youtube.com/'},
+    {name: 'Lock screen (Windows)', script: 'GUI l'},
+    {name: 'Open terminal (Ubuntu)', script: 'CTRL ALT t'},
+  ];
+  ex.forEach(e => { if (!macros.some(m => m.name === e.name)) macros.push(e); });
+  await saveMacros();
+};
+
+/* ---------- device ---------- */
+$('btnReboot').onclick = async () => { if (confirm('Restart the ESP32? This page reconnects by itself.')) { await req('reboot').catch(() => {}); say('Restarting…'); } };
+$('btnDisconnect').onclick = () => { userDisconnect = true; try { dev.gatt.disconnect(); } catch (e) {} };
+$('btnConnect').onclick = pickDevice;
+
+/* ---------- start ---------- */
+(async () => {
+  if (!navigator.bluetooth) { $('noBT').classList.remove('hide'); $('canBT').classList.add('hide'); pill('pBT', 'Bluetooth: unsupported', 'bad'); return; }
+  try { if (!(await navigator.bluetooth.getAvailability())) say('Bluetooth looks switched off on this device. Turn it on, then tap Connect.', true); } catch (e) {}
+  // Reconnect to a keyboard this browser was already allowed to use (Chrome desktop/Android where supported).
+  if (navigator.bluetooth.getDevices) {
+    try {
+      const ds = await navigator.bluetooth.getDevices();
+      if (ds.length) { dev = ds[0]; dev.addEventListener('gattserverdisconnected', onDisconnected); await connect(); }
+    } catch (e) {}
+  }
+})();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
